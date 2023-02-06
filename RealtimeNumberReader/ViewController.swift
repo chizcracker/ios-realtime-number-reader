@@ -2,7 +2,7 @@
 See LICENSE folder for this sample’s licensing information.
 
 Abstract:
-Main view controller: handles camera, preview and cutout UI.
+Main view controller that handles camera, preview, and cutout UI.
 */
 
 import UIKit
@@ -15,7 +15,7 @@ class ViewController: UIViewController {
 	@IBOutlet weak var cutoutView: UIView!
 	@IBOutlet weak var numberView: UILabel!
 	var maskLayer = CAShapeLayer()
-	// Device orientation. Updated whenever the orientation changes to a
+	// The device orientation that's updated whenever the orientation changes to a
 	// different supported orientation.
 	var currentOrientation = UIDeviceOrientation.portrait
 	
@@ -29,10 +29,10 @@ class ViewController: UIViewController {
     let videoDataOutputQueue = DispatchQueue(label: "com.example.apple-samplecode.VideoDataOutputQueue")
     
 	// MARK: - Region of interest (ROI) and text orientation
-	// Region of video data output buffer that recognition should be run on.
-	// Gets recalculated once the bounds of the preview layer are known.
+	// The region of the video data output buffer that recognition should be run on,
+	// which gets recalculated once the bounds of the preview layer are known.
 	var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
-	// Orientation of text to search for in the region of interest.
+	// The text orientation to search for in the region of interest (ROI).
 	var textOrientation = CGImagePropertyOrientation.up
 	
 	// MARK: - Coordinate transforms
@@ -44,7 +44,7 @@ class ViewController: UIViewController {
 	// Transform coordinates in ROI to global coordinates (still normalized).
 	var roiToGlobalTransform = CGAffineTransform.identity
 	
-	// Vision -> AVF coordinate transform.
+	// Vision to AVFoundation coordinate transform.
 	var visionToAVFTransform = CGAffineTransform.identity
 	
 	// MARK: - View controller methods
@@ -52,10 +52,10 @@ class ViewController: UIViewController {
 	override func viewDidLoad() {
 		super.viewDidLoad()
 		
-		// Set up preview view.
+		// Set up the preview view.
 		previewView.session = captureSession
 		
-		// Set up cutout view.
+		// Set up the cutout view.
 		cutoutView.backgroundColor = UIColor.gray.withAlphaComponent(0.5)
 		maskLayer.backgroundColor = UIColor.clear.cgColor
 		maskLayer.fillRule = .evenOdd
@@ -66,9 +66,9 @@ class ViewController: UIViewController {
         captureSessionQueue.async {
             self.setupCamera()
             
-            // Calculate region of interest now that the camera is setup.
+            // Calculate the ROI now that the camera is setup.
             DispatchQueue.main.async {
-                // Figure out initial ROI.
+                // Figure out the initial ROI.
                 self.calculateRegionOfInterest()
             }
         }
@@ -77,8 +77,7 @@ class ViewController: UIViewController {
 	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
 		super.viewWillTransition(to: size, with: coordinator)
 
-		// Only change the current orientation if the new one is landscape or
-		// portrait. You can't really do anything about flat or unknown.
+		// Only change the current orientation if the new one is landscape or portrait.
 		let deviceOrientation = UIDevice.current.orientation
 		if deviceOrientation.isPortrait || deviceOrientation.isLandscape {
 			currentOrientation = deviceOrientation
@@ -91,7 +90,7 @@ class ViewController: UIViewController {
 			}
 		}
 		
-		// Orientation changed: figure out new region of interest (ROI).
+		// The orientation changed. Figure out the new ROI.
 		calculateRegionOfInterest()
 	}
 	
@@ -103,7 +102,7 @@ class ViewController: UIViewController {
 	// MARK: - Setup
 	
 	func calculateRegionOfInterest() {
-		// In landscape orientation the desired ROI is specified as the ratio of
+		// In landscape orientation, the desired ROI is specified as the ratio of
 		// buffer width to height. When the UI is rotated to portrait, keep the
 		// vertical size the same (in buffer pixels). Also try to keep the
 		// horizontal size the same up to a maximum ratio.
@@ -111,18 +110,18 @@ class ViewController: UIViewController {
 		let desiredWidthRatio = 0.6
 		let maxPortraitWidth = 0.8
 		
-		// Figure out size of ROI.
+		// Figure out the size of the ROI.
 		let size: CGSize
 		if currentOrientation.isPortrait || currentOrientation == .unknown {
 			size = CGSize(width: min(desiredWidthRatio * bufferAspectRatio, maxPortraitWidth), height: desiredHeightRatio / bufferAspectRatio)
 		} else {
 			size = CGSize(width: desiredWidthRatio, height: desiredHeightRatio)
 		}
-		// Make it centered.
+		// Center the ROI.
 		regionOfInterest.origin = CGPoint(x: (1 - size.width) / 2, y: (1 - size.height) / 2)
 		regionOfInterest.size = size
 		
-		// ROI changed, update transform.
+		// The ROI changed, so update the transform.
 		setupOrientationAndTransform()
 		
 		// Update the cutout to match the new ROI.
@@ -150,48 +149,47 @@ class ViewController: UIViewController {
 	}
 	
 	func setupOrientationAndTransform() {
-		// Recalculate the affine transform between Vision coordinates and AVF coordinates.
+		// Recalculate the affine transform between Vision coordinates and AVFoundation coordinates.
 		
-		// Compensate for region of interest.
+		// Compensate for the ROI.
 		let roi = regionOfInterest
 		roiToGlobalTransform = CGAffineTransform(translationX: roi.origin.x, y: roi.origin.y).scaledBy(x: roi.width, y: roi.height)
 		
-		// Compensate for orientation (buffers always come in the same orientation).
+        // Compensate for the orientation. Buffers always come in the same orientation.
 		switch currentOrientation {
 		case .landscapeLeft:
-			textOrientation = CGImagePropertyOrientation.up
-			uiRotationTransform = CGAffineTransform.identity
+			textOrientation = .up
+			uiRotationTransform = .identity
 		case .landscapeRight:
-			textOrientation = CGImagePropertyOrientation.down
+			textOrientation = .down
 			uiRotationTransform = CGAffineTransform(translationX: 1, y: 1).rotated(by: CGFloat.pi)
 		case .portraitUpsideDown:
-			textOrientation = CGImagePropertyOrientation.left
+			textOrientation = .left
 			uiRotationTransform = CGAffineTransform(translationX: 1, y: 0).rotated(by: CGFloat.pi / 2)
-		default: // We default everything else to .portraitUp
-			textOrientation = CGImagePropertyOrientation.right
+		default: // Default everything else to .portraitUp.
+			textOrientation = .right
 			uiRotationTransform = CGAffineTransform(translationX: 0, y: 1).rotated(by: -CGFloat.pi / 2)
 		}
 		
-		// Full Vision ROI to AVF transform.
+		// The full Vision ROI to AVFoundation transform.
 		visionToAVFTransform = roiToGlobalTransform.concatenating(bottomToTopTransform).concatenating(uiRotationTransform)
 	}
 	
 	func setupCamera() {
-		guard let captureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: AVMediaType.video, position: .back) else {
+		guard let captureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
 			print("Could not create capture device.")
 			return
 		}
 		self.captureDevice = captureDevice
 		
-		// NOTE:
-		// Requesting 4k buffers allows recognition of smaller text but will
-		// consume more power. Use the smallest buffer size necessary to keep
-		// down battery usage.
+		// Requesting 4K buffers allows recognition of smaller text but consumes
+		// more power. Use the smallest buffer size necessary to minimize
+		// battery usage.
 		if captureDevice.supportsSessionPreset(.hd4K3840x2160) {
-			captureSession.sessionPreset = AVCaptureSession.Preset.hd4K3840x2160
+			captureSession.sessionPreset = .hd4K3840x2160
 			bufferAspectRatio = 3840.0 / 2160.0
 		} else {
-			captureSession.sessionPreset = AVCaptureSession.Preset.hd1920x1080
+			captureSession.sessionPreset = .hd1920x1080
 			bufferAspectRatio = 1920.0 / 1080.0
 		}
 		
@@ -203,20 +201,18 @@ class ViewController: UIViewController {
 			captureSession.addInput(deviceInput)
 		}
 		
-		// Configure video data output.
+		// Configure the video data output.
 		videoDataOutput.alwaysDiscardsLateVideoFrames = true
 		videoDataOutput.setSampleBufferDelegate(self, queue: videoDataOutputQueue)
 		videoDataOutput.videoSettings = [kCVPixelBufferPixelFormatTypeKey as String: kCVPixelFormatType_420YpCbCr8BiPlanarFullRange]
 		if captureSession.canAddOutput(videoDataOutput) {
 			captureSession.addOutput(videoDataOutput)
-			// NOTE:
-			// There is a trade-off to be made here. Enabling stabilization will
-			// give temporally more stable results and should help the recognizer
-			// converge. But if it's enabled the VideoDataOutput buffers don't
-			// match what's displayed on screen, which makes drawing bounding
-			// boxes very hard. Disable it in this app to allow drawing detected
-			// bounding boxes on screen.
-			videoDataOutput.connection(with: AVMediaType.video)?.preferredVideoStabilizationMode = .off
+            // There's a trade-off here. Enabling stabilization temporally gives more
+            // stable results and should help the recognizer converge, but if it's
+            // enabled, the VideoDataOutput buffers don't match what's displayed on
+            // screen, which makes drawing bounding boxes difficult. Disable stabilization
+            // in this app to allow drawing detected bounding boxes on screen.
+			videoDataOutput.connection(with: .video)?.preferredVideoStabilizationMode = .off
 		} else {
 			print("Could not add VDO output")
 			return
@@ -239,9 +235,8 @@ class ViewController: UIViewController {
 	// MARK: - UI drawing and interaction
 	
 	func showString(string: String) {
-		// Found a definite number.
-		// Stop the camera synchronously to ensure that no further buffers are
-		// received. Then update the number view asynchronously.
+		// Stop the camera synchronously to stop receiving buffers.
+        // Then update the number view asynchronously.
 		captureSessionQueue.sync {
 			self.captureSession.stopRunning()
             DispatchQueue.main.async {

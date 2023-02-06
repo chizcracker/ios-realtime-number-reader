@@ -2,9 +2,7 @@
 See LICENSE folder for this sample’s licensing information.
 
 Abstract:
-Vision view controller.
-			Recognizes text using a Vision VNRecognizeTextRequest request handler in pixel buffers from an AVCaptureOutput.
-			Displays bounding boxes around recognized text results in real time.
+The Vision view controller, which recognizes and displays bounding boxes around text.
 */
 
 import Foundation
@@ -13,13 +11,14 @@ import AVFoundation
 import Vision
 
 class VisionViewController: ViewController {
+    
 	var request: VNRecognizeTextRequest!
-	// Temporal string tracker
+	// The temporal string tracker.
 	let numberTracker = StringTracker()
 	
 	override func viewDidLoad() {
-		// Set up vision request before letting ViewController set up the camera
-		// so that it exists when the first buffer is received.
+		// Set up the Vision request before letting ViewController set up the camera
+		// so it exists when the first buffer is received.
 		request = VNRecognizeTextRequest(completionHandler: recognizeTextHandler)
 
 		super.viewDidLoad()
@@ -27,11 +26,11 @@ class VisionViewController: ViewController {
 	
 	// MARK: - Text recognition
 	
-	// Vision recognition handler.
+	// The Vision recognition handler.
 	func recognizeTextHandler(request: VNRequest, error: Error?) {
 		var numbers = [String]()
-		var redBoxes = [CGRect]() // Shows all recognized text lines
-		var greenBoxes = [CGRect]() // Shows words that might be serials
+		var redBoxes = [CGRect]() // Shows all recognized text lines.
+		var greenBoxes = [CGRect]() // Shows words that might be serials.
 		
 		guard let results = request.results as? [VNRecognizedTextObservation] else {
 			return
@@ -42,17 +41,17 @@ class VisionViewController: ViewController {
 		for visionResult in results {
 			guard let candidate = visionResult.topCandidates(maximumCandidates).first else { continue }
 			
-			// Draw red boxes around any detected text, and green boxes around
+			// Draw red boxes around any detected text and green boxes around
 			// any detected phone numbers. The phone number may be a substring
-			// of the visionResult. If a substring, draw a green box around the
-			// number and a red box around the full string. If the number covers
-			// the full result only draw the green box.
+			// of the visionResult. If it's a substring, draw a green box around
+			// the number and a red box around the full string. If the number
+			// covers the full result, only draw the green box.
 			var numberIsSubstring = true
 			
 			if let result = candidate.string.extractPhoneNumber() {
 				let (range, number) = result
-				// Number may not cover full visionResult. Extract bounding box
-				// of substring.
+				// The number might not cover full visionResult. Extract the bounding
+				// box of the substring.
 				if let box = try? candidate.boundingBox(for: range)?.boundingBox {
 					numbers.append(number)
 					greenBoxes.append(box)
@@ -66,9 +65,9 @@ class VisionViewController: ViewController {
 		
 		// Log any found numbers.
 		numberTracker.logFrame(strings: numbers)
-		show(boxGroups: [(color: UIColor.red.cgColor, boxes: redBoxes), (color: UIColor.green.cgColor, boxes: greenBoxes)])
+		show(boxGroups: [(color: .red, boxes: redBoxes), (color: .green, boxes: greenBoxes)])
 		
-		// Check if we have any temporally stable numbers.
+		// Check if there are any temporally stable numbers.
 		if let sureNumber = numberTracker.getStableString() {
 			showString(string: sureNumber)
 			numberTracker.reset(string: sureNumber)
@@ -77,10 +76,10 @@ class VisionViewController: ViewController {
 	
 	override func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
 		if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-			// Configure for running in real-time.
+			// Configure for running in real time.
 			request.recognitionLevel = .fast
-			// Language correction won't help recognizing phone numbers. It also
-			// makes recognition slower.
+            // Language correction doesn't help in recognizing phone numbers and also
+            // slows recognition.
 			request.usesLanguageCorrection = false
 			// Only run on the region of interest for maximum speed.
 			request.regionOfInterest = regionOfInterest
@@ -96,7 +95,7 @@ class VisionViewController: ViewController {
 	
 	// MARK: - Bounding box drawing
 	
-	// Draw a box on screen. Must be called from main queue.
+	// Draw a box on the screen, which must be done the main queue.
 	var boxLayer = [CAShapeLayer]()
 	func draw(rect: CGRect, color: CGColor) {
 		let layer = CAShapeLayer()
@@ -116,7 +115,7 @@ class VisionViewController: ViewController {
 		boxLayer.removeAll()
 	}
 	
-	typealias ColoredBoxGroup = (color: CGColor, boxes: [CGRect])
+	typealias ColoredBoxGroup = (color: UIColor, boxes: [CGRect])
 	
 	// Draws groups of colored boxes.
 	func show(boxGroups: [ColoredBoxGroup]) {
@@ -127,7 +126,7 @@ class VisionViewController: ViewController {
 				let color = boxGroup.color
 				for box in boxGroup.boxes {
 					let rect = layer.layerRectConverted(fromMetadataOutputRect: box.applying(self.visionToAVFTransform))
-					self.draw(rect: rect, color: color)
+                    self.draw(rect: rect, color: color.cgColor)
 				}
 			}
 		}

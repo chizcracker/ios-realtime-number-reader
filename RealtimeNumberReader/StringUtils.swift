@@ -2,21 +2,22 @@
 See LICENSE folder for this sample’s licensing information.
 
 Abstract:
-Utilities for dealing with recognized strings
+The utilities for dealing with recognized strings.
 */
 
 import Foundation
 
 extension Character {
-	// Given a list of allowed characters, try to convert self to those in list
-	// if not already in it. This handles some common misclassifications for
+    
+	// Given a list of allowed characters, try to convert self to those in the list
+	// if not already in it. This method handles some common misclassifications for
 	// characters that are visually similar and can only be correctly recognized
-	// with more context and/or domain knowledge. Some examples (should be read
-	// in Menlo or some other font that has different symbols for all characters):
-	// 1 and l are the same character in Times New Roman
-	// I and l are the same character in Helvetica
-	// 0 and O are extremely similar in many fonts
-	// oO, wW, cC, sS, pP and others only differ by size in many fonts
+	// with more context or domain knowledge. Here are some examples, which should be
+	// read in Menlo or some other font that has different symbols for all characters:
+	// 1 and l are the same character in Times New Roman.
+	// I and l are the same character in Helvetica.
+	// 0 and O are extremely similar in many fonts.
+	// oO, wW, cC, sS, pP and others only differ by size in many fonts.
 	func getSimilarCharacterIfNotIn(allowedChars: String) -> Character {
 		let conversionTable = [
 			"s": "S",
@@ -84,7 +85,7 @@ extension String {
 			return nil
 		}
 		
-		// Potential number found. Strip out punctuation, whitespace and country
+		// Potential number found. Strip out punctuation, whitespace, and country
 		// prefix.
 		var phoneNumberDigits = ""
 		let substring = String(self[range])
@@ -108,7 +109,8 @@ extension String {
 			return nil
 		}
 		
-		// Substitute commonly misrecognized characters, for example: 'S' -> '5' or 'l' -> '1'
+		// Substitute commonly misrecognized characters, for example: 'S' -> '5'
+        // or 'l' -> '1'.
 		var result = ""
 		let allowedChars = "0123456789"
 		for var char in phoneNumberDigits {
@@ -127,7 +129,7 @@ class StringTracker {
 
 	typealias StringObservation = (lastSeen: Int64, count: Int64)
 	
-	// Dictionary of seen strings. Used to get stable recognition before
+	// The dictionary of seen strings, used to get stable recognition before
 	// displaying anything.
 	var seenStrings = [String: StringObservation]()
 	var bestCount = Int64(0)
@@ -145,10 +147,11 @@ class StringTracker {
 	
 		var obsoleteStrings = [String]()
 
-		// Go through strings and prune any that have not been seen in while.
-		// Also find the (non-pruned) string with the greatest count.
+		// Prune old strings and identify the non-pruned string with the
+        // greatest count.
 		for (string, obs) in seenStrings {
-			// Remove previously seen text after 30 frames (~1s).
+			// Add text not seen in the last 30 frames (~1s) to the
+            // obsolete strings array.
 			if obs.lastSeen < frameIndex - 30 {
 				obsoleteStrings.append(string)
 			}
