@@ -48,8 +48,10 @@ class VisionViewController: ViewController {
 			// covers the full result, only draw the green box.
 			var numberIsSubstring = true
 			
-			if let result = candidate.string.extractPhoneNumber() {
+			if let result = candidate.string.extractNumber() {
 				let (range, number) = result
+                showDebugString(string: number)
+
 				// The number might not cover full visionResult. Extract the bounding
 				// box of the substring.
 				if let box = try? candidate.boundingBox(for: range)?.boundingBox {
@@ -83,6 +85,8 @@ class VisionViewController: ViewController {
 			request.usesLanguageCorrection = false
 			// Only run on the region of interest for maximum speed.
 			request.regionOfInterest = regionOfInterest
+            request.revision = VNRecognizeTextRequestRevision3
+            
 			
 			let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: textOrientation, options: [:])
 			do {
@@ -101,7 +105,7 @@ class VisionViewController: ViewController {
 		let layer = CAShapeLayer()
 		layer.opacity = 0.5
 		layer.borderColor = color
-		layer.borderWidth = 1
+		layer.borderWidth = 3
 		layer.frame = rect
 		boxLayer.append(layer)
 		previewView.videoPreviewLayer.insertSublayer(layer, at: 1)

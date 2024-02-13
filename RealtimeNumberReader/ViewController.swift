@@ -13,8 +13,9 @@ class ViewController: UIViewController {
 	// MARK: - UI objects
 	@IBOutlet weak var previewView: PreviewView!
 	@IBOutlet weak var cutoutView: UIView!
-	@IBOutlet weak var numberView: UILabel!
-	var maskLayer = CAShapeLayer()
+	@IBOutlet weak var numberResultView: UILabel!
+    @IBOutlet weak var numberDebugView: UILabel!
+    var maskLayer = CAShapeLayer()
 	// The device orientation that's updated whenever the orientation changes to a
 	// different supported orientation.
 	var currentOrientation = UIDeviceOrientation.portrait
@@ -144,8 +145,10 @@ class ViewController: UIViewController {
 		
 		// Move the number view down to under cutout.
 		var numFrame = cutout
+        numFrame.origin.y += numFrame.size.height
+        numberDebugView.frame = numFrame
 		numFrame.origin.y += numFrame.size.height
-		numberView.frame = numFrame
+		numberResultView.frame = numFrame
 	}
 	
 	func setupOrientationAndTransform() {
@@ -238,13 +241,24 @@ class ViewController: UIViewController {
 		// Stop the camera synchronously to stop receiving buffers.
         // Then update the number view asynchronously.
 		captureSessionQueue.sync {
-			self.captureSession.stopRunning()
+			//self.captureSession.stopRunning()
             DispatchQueue.main.async {
-                self.numberView.text = string
-                self.numberView.isHidden = false
+                self.numberResultView.text = string
+                self.numberResultView.isHidden = false
             }
 		}
 	}
+    
+    func showDebugString(string: String) {
+        // Stop the camera synchronously to stop receiving buffers.
+        // Then update the number view asynchronously.
+        captureSessionQueue.sync {
+            DispatchQueue.main.async {
+                self.numberDebugView.text = string
+                self.numberDebugView.isHidden = false
+            }
+        }
+    }
 	
 	@IBAction func handleTap(_ sender: UITapGestureRecognizer) {
         captureSessionQueue.async {
@@ -252,7 +266,8 @@ class ViewController: UIViewController {
                 self.captureSession.startRunning()
             }
             DispatchQueue.main.async {
-                self.numberView.isHidden = true
+                self.numberResultView.isHidden = true
+                self.numberDebugView.isHidden = true
             }
         }
 	}
