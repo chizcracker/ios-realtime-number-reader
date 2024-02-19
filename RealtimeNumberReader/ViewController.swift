@@ -10,26 +10,19 @@ import AVFoundation
 import Vision
 
 class ViewController: UIViewController {
-	let previewView = PreviewView()
-    let maskLayer = CAShapeLayer()
-    var boundingBoxView: BoundingBoxView!
+	private let previewView = PreviewView()
+    private var boundingBoxView: BoundingBoxView!
+    private let initialOrientation = UIDeviceOrientation.portrait
     
-	// The device orientation that's updated whenever the orientation changes to a
-	// different supported orientation.
-	var currentOrientation = UIDeviceOrientation.portrait
-	
 	// MARK: - Capture related objects
 	private let captureSession = AVCaptureSession()
-    let captureSessionQueue = DispatchQueue(label: "com.example.apple-samplecode.CaptureSessionQueue")
+    private let captureSessionQueue = DispatchQueue(label: "com.example.apple-samplecode.CaptureSessionQueue")
+	private var captureDevice: AVCaptureDevice?
+	private var videoDataOutput = AVCaptureVideoDataOutput()
+    private let videoDataOutputQueue = DispatchQueue(label: "com.example.apple-samplecode.VideoDataOutputQueue")
     
-	var captureDevice: AVCaptureDevice?
-    
-	var videoDataOutput = AVCaptureVideoDataOutput()
-    let videoDataOutputQueue = DispatchQueue(label: "com.example.apple-samplecode.VideoDataOutputQueue")
-    var request: VNRecognizeTextRequest!
-	// The region of the video data output buffer that recognition should be run on,
-	// which gets recalculated once the bounds of the preview layer are known.
-	var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
+    // MARK: - Recognition related objects
+    private var request: VNRecognizeTextRequest!
 	// The text orientation to search for in the region of interest (ROI).
 	var textOrientation = CGImagePropertyOrientation.up
     // TODO: Understand this
@@ -59,7 +52,6 @@ class ViewController: UIViewController {
         //view.addSubview(boundingBoxView.debugLayer)
         view.addSubview(boundingBoxView)
 
-        
         // Set up the Vision request before letting ViewController set up the camera
         // so it exists when the first buffer is received.
         request = VNRecognizeTextRequest(completionHandler: boundingBoxView.recognizeTextHandler)
@@ -71,9 +63,8 @@ class ViewController: UIViewController {
             
             // Calculate the ROI now that the camera is setup.
             DispatchQueue.main.async {
-                // Figure out the initial ROI.
-                print("QUEUE!")
-                self.setupOrientationAndTransform()
+                // Initial orientation setup
+                self.setupOrientationAndTransform(deviceOrientation: self.initialOrientation)
             }
         }
 	}
@@ -81,11 +72,7 @@ class ViewController: UIViewController {
 	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
 		super.viewWillTransition(to: size, with: coordinator)
 
-		// Only change the current orientation if the new one is landscape or portrait.
 		let deviceOrientation = UIDevice.current.orientation
-		if deviceOrientation.isPortrait || deviceOrientation.isLandscape {
-			currentOrientation = deviceOrientation
-		}
 		
 		// Handle device orientation in the preview layer.
 		if let videoPreviewLayerConnection = previewView.videoPreviewLayer.connection {
@@ -93,17 +80,20 @@ class ViewController: UIViewController {
 				videoPreviewLayerConnection.videoOrientation = newVideoOrientation
 			}
 		}
-		
-		// The orientation changed. Figure out the new ROI.
-        setupOrientationAndTransform()
-	}
+        
+        // Only change the current orientation if the new one is landscape or portrait.
+        if deviceOrientation.isPortrait || deviceOrientation.isLandscape {
+            setupOrientationAndTransform(deviceOrientation: deviceOrientation)
+        }
+    }
 	
 	// MARK: - Setup
-	func setupOrientationAndTransform() {
+
+    func setupOrientationAndTransform(deviceOrientation: UIDeviceOrientation) {
         // Compensate for the orientation. Buffers always come in the same orientation.
         let uiRotationTransform: CGAffineTransform
         
-		switch currentOrientation {
+		switch deviceOrientation {
             case .landscapeLeft:
                 textOrientation = .up
                 uiRotationTransform = .identity
@@ -118,7 +108,7 @@ class ViewController: UIViewController {
                 uiRotationTransform = CGAffineTransform(translationX: 0, y: 1).rotated(by: -CGFloat.pi / 2)
 		}
 		
-		// The full Vision ROI to AVFoundation transform.
+		// Update bounding box with new rotaion transformation.
         boundingBoxView.setRotationTransformation(uiRotationTransform: uiRotationTransform)
 	}
 	
@@ -179,7 +169,9 @@ class ViewController: UIViewController {
 		captureSession.startRunning()
 	}
     
-   
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+    }
 }
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
@@ -197,6 +189,7 @@ extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
             request.revision = VNRecognizeTextRequestRevision3
             
             let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: textOrientation, options: [:])
+            
             do {
                 try requestHandler.perform([request])
             } catch {

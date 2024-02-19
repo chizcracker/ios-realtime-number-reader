@@ -43,7 +43,8 @@ class BoundingBoxView: UIView {
         layer.borderWidth = config.borderWidth
         layer.borderColor = config.borderColor
         frame = CGRect(origin: config.startingPosition, size: config.startingSize)
-        
+        setRegionOfInterest()
+
         // Add Gestures
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(panGestureHandler))
         addGestureRecognizer(panGesture)
@@ -57,7 +58,7 @@ class BoundingBoxView: UIView {
         
         let labelWidth = UIScreen.main.bounds.size.width - 44
         infoLabel.frame = CGRect(origin: config.debugLabelPosition, size: CGSize(width: labelWidth, height: 15))
-        addSubview(infoLabel)
+        targetView.addSubview(infoLabel)
         
         // Setup debug layer
         if(debug) {
@@ -69,42 +70,41 @@ class BoundingBoxView: UIView {
 
     }
     
+    // MARK: - Getters/Setters
+    
+    func getRegionOfInterest() -> CGRect {
+        // log("getRegionOfInterest: \(regionOfInterest)")
+        return regionOfInterest
+    }
+    
     func setRotationTransformation(uiRotationTransform: CGAffineTransform) {
-        let transformed = normalize()
-        
-        print("setupOrientationAndTransform: setting ROI: \(regionOfInterest) to \(transformed)")
-        regionOfInterest.origin = transformed.origin
-        regionOfInterest.size = transformed.size
-        print("setupOrientationAndTransform: ROI: \(regionOfInterest)")
-        
-        // Recalculate the affine transform between Vision coordinates and AVFoundation coordinates.
-        // Compensate for the ROI.
-        // Transform coordinates in ROI to global coordinates (still normalized).
-        let roiToGlobalTransform = CGAffineTransform(
-            translationX: transformed.origin.x,
-            y: transformed.origin.y
-        ).scaledBy(x: transformed.width, y: transformed.height)
-        
         self.uiRotationTransform = uiRotationTransform
-        self.visionToAVFTransform = roiToGlobalTransform.concatenating(bottomToTopTransform).concatenating(uiRotationTransform)
-
-        if(debug) { updateDebugFrame() }
+        setVisionToAVFTransform()
     }
     
-    func setRegionOfInterest(regionOfInterest: CGRect) {
-        self.regionOfInterest = regionOfInterest
+    private func setRegionOfInterest() {
+        // update ROI
+        log("setupOrientationAndTransform: updating ROI: \(regionOfInterest)")
+        let newRoi = toRegionOfInterest()
+        regionOfInterest.origin = newRoi.origin
+        regionOfInterest.size = newRoi.size
+        log("setupOrientationAndTransform: ROI: \(regionOfInterest)")
         
-        if(debug) { updateDebugFrame() }
-    }
-
-    override func layoutSubviews() {
-        super.layoutSubviews()
-
-        // adjust subviews
-        //if(debug) { updateDebugFrame() }
+        // update debugFrame
+        if(debug) { updateDebugInfo() }
     }
     
-    var initialCenter: CGPoint = CGPoint.zero
+    private func setVisionToAVFTransform () {
+        // update visiontoAVFTransform
+        visionToAVFTransform = getVisionToAVFTransform()
+        
+        // update debugFrame
+        if(debug) { updateDebugInfo() }
+    }
+    
+    // MARK: - UI
+
+    private var initialCenter: CGPoint = CGPoint.zero
     
     @objc
     private func panGestureHandler(_ gestureRecognizer : UIPanGestureRecognizer) {
@@ -112,8 +112,7 @@ class BoundingBoxView: UIView {
         if gestureRecognizer.state == .ended {
             log("PanGesture: new position: \(frame.origin)")
             log("X: \(Int(frame.origin.x)), Y: \(Int(frame.origin.y))")
-            
-            if(debug) { updateDebugFrame() }
+            setRegionOfInterest()
         }
     }
     
@@ -142,7 +141,7 @@ class BoundingBoxView: UIView {
             log("pinchGestureHandler: new position: \(frame.origin)")
             log("pinchGestureHandler: new size: \(frame.size)")
             
-            if(debug) { updateDebugFrame() }
+            setRegionOfInterest()
         }
     }
     
@@ -154,38 +153,6 @@ class BoundingBoxView: UIView {
             currentView.layer.borderWidth = currentView.layer.borderWidth.scaled(by: 1/gestureRecognizer.scale)
             gestureRecognizer.scale = 1.0
         }
-    }
-    
-    func normalize() -> CGRect{
-        // Figure out the size of the ROI.
-        let frameWidth = CGFloat(targetView.frame.size.width)
-        let frameHeight = CGFloat(targetView.frame.size.height)
-
-        let normalized =
-        CGRect(
-            origin: CGPoint(
-                x: frame.origin.x / frameWidth,
-                y: frame.origin.y / frameHeight),
-            size: CGSize(
-                width: frame.size.width / frameWidth,
-                height: frame.size.height / frameHeight)
-        )
-        //.applying(self.bottomToTopTransform.concatenating(self.uiRotationTransform).inverted())
-        
-        log("Transformed: \(normalized)")
-        
-        DispatchQueue.main.async {
-            // Wait for the next run cycle before updating the cutout. This
-            // ensures that the preview layer already has its new orientation.
-            print("MainQ: FromBBox: ROI: setting ROI: \(self.regionOfInterest) to \(normalized)")
-            self.regionOfInterest = normalized
-            if(self.debug) { self.updateDebugFrame() }
-        }
-        return normalized
-    }
-    
-    func getRegionOfInterest() -> CGRect {
-        return regionOfInterest
     }
     
     // MARK: - Text recognition
@@ -235,7 +202,39 @@ class BoundingBoxView: UIView {
         // Check if there are any temporally stable numbers.
         if let sureNumber = numberTracker.getStableString() {
             numberTracker.reset(string: sureNumber)
+            printInfoLabel("Result: \(sureNumber)")
         }
+    }
+    
+    private func toRegionOfInterest() -> CGRect{
+        // Figure out the size of the ROI.
+        let frameWidth = CGFloat(targetView.frame.size.width)
+        let frameHeight = CGFloat(targetView.frame.size.height)
+        log("toROI: frameWidth: \(frameWidth), frameHeight: \(frameHeight)")
+        
+        let normalized = CGRect(
+            origin: CGPoint(
+                x: frame.origin.x / frameWidth,
+                y: frame.origin.y / frameHeight),
+            size: CGSize(
+                width: frame.size.width / frameWidth,
+                height: frame.size.height / frameHeight)
+        )
+        //.applying(self.bottomToTopTransform.concatenating(self.uiRotationTransform).inverted())
+        log("toROI: normalized: \(normalized)")
+        return normalized
+    }
+    
+    private func getVisionToAVFTransform() -> CGAffineTransform{
+        // Recalculate the affine transform between Vision coordinates and AVFoundation coordinates.
+        // Compensate for the ROI.
+        // Transform coordinates in ROI to global coordinates (still normalized).
+        let roiToGlobalTransform = CGAffineTransform(
+            translationX: regionOfInterest.origin.x,
+            y: regionOfInterest.origin.y
+        ).scaledBy(x: regionOfInterest.width, y: regionOfInterest.height)
+        
+        return roiToGlobalTransform.concatenating(bottomToTopTransform).concatenating(uiRotationTransform)
     }
     
     // MARK: - Bounding box drawing
@@ -277,7 +276,12 @@ class BoundingBoxView: UIView {
         }
     }
     
-    func updateDebugFrame() {
+    private func updateDebugInfo() {
+        printInfoLabel("Box: \(frame), ROI: \(regionOfInterest)")
+        if(debug) { updateDebugFrame() }
+    }
+    
+    private func updateDebugFrame() {
         log("updateDebugFrame: ROI: \(regionOfInterest)")
         log("updateDebugFrame: previewView: \(targetView.frame)")
         
