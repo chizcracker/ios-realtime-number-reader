@@ -19,8 +19,8 @@ enum ViewConfigPresets {
                 id: "test",
                 borderColor: UIColor.green.cgColor,
                 borderWidth: 2,
-                startingPosition: CGPoint(x: 100, y: 300), // TODO: change
-                startingSize: CGSize(width: 100, height: 100), // TODO: change
+                startingPosition: CGPoint(x: 200, y: 300), // TODO: change
+                startingSize: CGSize(width: 100, height: 200), // TODO: change
                 debugLabelPosition: CGPoint(x: 22, y: 33)
             )        case .toran:
             return ViewConfig(

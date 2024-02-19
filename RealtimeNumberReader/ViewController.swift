@@ -15,7 +15,7 @@ class ViewController: UIViewController {
     let numberResultView = UILabel()
     let numberDebugView = UILabel()
     let maskLayer = CAShapeLayer()
-    let boundingBoxView = BoundingBoxView(name: "test", config: ViewConfigPresets.ollie.config)
+    var boundingBoxView: BoundingBoxView!
     
 	// The device orientation that's updated whenever the orientation changes to a
 	// different supported orientation.
@@ -78,6 +78,7 @@ class ViewController: UIViewController {
         view.addSubview(numberDebugView)
         view.addSubview(numberResultView)
         
+        boundingBoxView = BoundingBoxView(name: "test", config: ViewConfigPresets.test.config)
         view.addSubview(boundingBoxView)
         
         // Set up the Vision request before letting ViewController set up the camera
@@ -134,18 +135,6 @@ class ViewController: UIViewController {
         let maxPortraitWidth = 0.8
         
         // Figure out the size of the ROI.
-        let size: CGSize
-        if currentOrientation.isPortrait || currentOrientation == .unknown {
-            print("portrait size width: \(desiredWidthRatio * bufferAspectRatio) VS \(maxPortraitWidth)")
-            print("portrait size height: \(desiredHeightRatio / bufferAspectRatio)")
-
-            size = CGSize(width: min(desiredWidthRatio * bufferAspectRatio, maxPortraitWidth), height: desiredHeightRatio / bufferAspectRatio)
-        } else {
-            size = CGSize(width: desiredWidthRatio, height: desiredHeightRatio)
-        }
-        // Center the ROI.
-        // regionOfInterest.origin = CGPoint(x: (1 - size.width) / 2, y: (1 - size.height) / 2)
-        // regionOfInterest.size = size
         
         let transform = bottomToTopTransform.concatenating(uiRotationTransform).inverted()
      
@@ -155,7 +144,7 @@ class ViewController: UIViewController {
         let frameWidth = CGFloat(previewView.frame.size.width)
         let frameHeight = CGFloat(previewView.frame.size.height)
 
-        let bbFrameBeforeTransform =
+        let transformed =
         CGRect(
             origin: CGPoint(
                 x: boundingBoxView.frame.origin.x / frameWidth,
@@ -163,17 +152,11 @@ class ViewController: UIViewController {
             size: CGSize(
                 width: boundingBoxView.frame.size.width / frameWidth,
                 height: boundingBoxView.frame.size.height / frameHeight)
-        )
-        print("bbFrameBeforeTransform: \(bbFrameBeforeTransform)")
-        var bbFrame = bbFrameBeforeTransform.applying(transform)
+        ).applying(transform)
         print("Transformed: \(bbFrame)")
         
-        regionOfInterest.origin = bbFrame.origin
-        regionOfInterest.size = bbFrame.size
-        //regionOfInterest.origin = CGPoint(x: 0.5, y: 0.5)
-        //regionOfInterest.size = CGSize(width: 0.1, height: 0.1)
-        //regionOfInterest.origin = CGPoint(x: (1 - size.width) / 2, y: (1 - size.height) / 2)
-        //regionOfInterest.size = size
+        regionOfInterest.origin = transformed.origin
+        regionOfInterest.size = transformed.size
         print("ROI: \(regionOfInterest)")
 
 		// The ROI changed, so update the transform.
