@@ -2,7 +2,7 @@
 See LICENSE folder for this sample’s licensing information.
 
 Abstract:
-Main view controller that handles camera, preview, and cutout UI.
+Main view controller that handles camera, preview, and bounding box UI.
 */
 
 import UIKit
@@ -11,9 +11,6 @@ import Vision
 
 class ViewController: UIViewController {
 	let previewView = PreviewView()
-    let cutoutView = UIView()
-    let numberResultView = UILabel()
-    let numberDebugView = UILabel()
     let maskLayer = CAShapeLayer()
     var boundingBoxView: BoundingBoxView!
     
@@ -29,25 +26,16 @@ class ViewController: UIViewController {
     
 	var videoDataOutput = AVCaptureVideoDataOutput()
     let videoDataOutputQueue = DispatchQueue(label: "com.example.apple-samplecode.VideoDataOutputQueue")
-    
-	// MARK: - Region of interest (ROI) and text orientation
+    var request: VNRecognizeTextRequest!
 	// The region of the video data output buffer that recognition should be run on,
 	// which gets recalculated once the bounds of the preview layer are known.
 	var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
 	// The text orientation to search for in the region of interest (ROI).
 	var textOrientation = CGImagePropertyOrientation.up
-	
-	// MARK: - Coordinate transforms
+    // TODO: Understand this
+    // TODO: Maybe this will help: https://think4753.rssing.com/chan-74142477/all_p3.html
 	var bufferAspectRatio: Double!
-	// Transform from UI orientation to buffer orientation.
-	var uiRotationTransform = CGAffineTransform.identity
-	// Transform bottom-left coordinates to top-left.
-	var bottomToTopTransform = CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: -1)
 
-	
-	// Vision to AVFoundation coordinate transform.
-	var visionToAVFTransform = CGAffineTransform.identity
-	
 	// MARK: - View controller methods
 	
 	override func viewDidLoad() {
@@ -66,24 +54,15 @@ class ViewController: UIViewController {
         previewView.backgroundColor = .white
         previewView.videoPreviewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
         view.addSubview(previewView)
-        
-		// Set up the cutout view.
-        cutoutView.frame = previewView.frame
-		cutoutView.backgroundColor = UIColor.gray.withAlphaComponent(0.5)
-        maskLayer.backgroundColor = UIColor.clear.cgColor
-        maskLayer.fillRule = .evenOdd
-        cutoutView.layer.mask = maskLayer
-        view.addSubview(cutoutView)
 
-        view.addSubview(numberDebugView)
-        view.addSubview(numberResultView)
-        
-        boundingBoxView = BoundingBoxView(name: "test", config: ViewConfigPresets.test.config)
+        boundingBoxView = BoundingBoxView(name: "test", targetView: previewView, config: ViewConfigPresets.test.config)
+        //view.addSubview(boundingBoxView.debugLayer)
         view.addSubview(boundingBoxView)
+
         
         // Set up the Vision request before letting ViewController set up the camera
         // so it exists when the first buffer is received.
-        request = VNRecognizeTextRequest(completionHandler: recognizeTextHandler)
+        request = VNRecognizeTextRequest(completionHandler: boundingBoxView.recognizeTextHandler)
 
         // Starting the capture session is a blocking call. Perform setup using
         // a dedicated serial dispatch queue to prevent blocking the main thread.
@@ -93,7 +72,8 @@ class ViewController: UIViewController {
             // Calculate the ROI now that the camera is setup.
             DispatchQueue.main.async {
                 // Figure out the initial ROI.
-                self.calculateRegionOfInterest()
+                print("QUEUE!")
+                self.setupOrientationAndTransform()
             }
         }
 	}
@@ -115,98 +95,14 @@ class ViewController: UIViewController {
 		}
 		
 		// The orientation changed. Figure out the new ROI.
-		calculateRegionOfInterest()
-	}
-	
-	override func viewDidLayoutSubviews() {
-		super.viewDidLayoutSubviews()
-		updateCutout()
+        setupOrientationAndTransform()
 	}
 	
 	// MARK: - Setup
-	
-    func calculateRegionOfInterest() {
-        // In landscape orientation, the desired ROI is specified as the ratio of
-        // buffer width to height. When the UI is rotated to portrait, keep the
-        // vertical size the same (in buffer pixels). Also try to keep the
-        // horizontal size the same up to a maximum ratio.
-        let desiredHeightRatio = 0.15
-        let desiredWidthRatio = 0.6
-        let maxPortraitWidth = 0.8
-        
-        // Figure out the size of the ROI.
-        
-        let transform = bottomToTopTransform.concatenating(uiRotationTransform).inverted()
-     
-        print("bbBox: \(boundingBoxView.frame)")
-        print("bbBox - Bounds: \(boundingBoxView.bounds)")
-        
-        let frameWidth = CGFloat(previewView.frame.size.width)
-        let frameHeight = CGFloat(previewView.frame.size.height)
-
-        let transformed =
-        CGRect(
-            origin: CGPoint(
-                x: boundingBoxView.frame.origin.x / frameWidth,
-                y: boundingBoxView.frame.origin.y / frameHeight),
-            size: CGSize(
-                width: boundingBoxView.frame.size.width / frameWidth,
-                height: boundingBoxView.frame.size.height / frameHeight)
-        ).applying(transform)
-        print("Transformed: \(bbFrame)")
-        
-        regionOfInterest.origin = transformed.origin
-        regionOfInterest.size = transformed.size
-        print("ROI: \(regionOfInterest)")
-
-		// The ROI changed, so update the transform.
-		setupOrientationAndTransform()
-		
-		// Update the cutout to match the new ROI.
-		DispatchQueue.main.async {
-			// Wait for the next run cycle before updating the cutout. This
-			// ensures that the preview layer already has its new orientation.
-			self.updateCutout()
-		}
-	}
-	
-	func updateCutout() {
-        print("updateCutout: ROI: \(regionOfInterest)")
-        print("updateCutout: previewView: \(previewView.frame)")
-        
-		// Figure out where the cutout ends up in layer coordinates.
-		let roiRectTransform = bottomToTopTransform.concatenating(uiRotationTransform)
-        let cutout = previewView.videoPreviewLayer.layerRectConverted(fromMetadataOutputRect: regionOfInterest.applying(roiRectTransform))
-        
-        //cutout = cutoutOriginal
-        print("updateCutout: Cutout: \(cutout)")
-		
-		// Create the mask.
-		let path = UIBezierPath(rect: cutoutView.frame)
-		path.append(UIBezierPath(rect: cutout))
-
-		maskLayer.path = path.cgPath
-		
-		// Move the number view down to under cutout.
-		var numFrame = cutout
-        numFrame.origin.y += numFrame.size.height
-        numberDebugView.frame = numFrame
-		numFrame.origin.y += numFrame.size.height
-		numberResultView.frame = numFrame
-	}
-	
 	func setupOrientationAndTransform() {
-		// Recalculate the affine transform between Vision coordinates and AVFoundation coordinates.
-		
-		// Compensate for the ROI.
-		let roi = regionOfInterest
-        // Transform coordinates in ROI to global coordinates (still normalized).
-        let roiToGlobalTransform = CGAffineTransform(
-            translationX: roi.origin.x,
-            y: roi.origin.y
-        ).scaledBy(x: roi.width, y: roi.height)
-		
         // Compensate for the orientation. Buffers always come in the same orientation.
+        let uiRotationTransform: CGAffineTransform
+        
 		switch currentOrientation {
             case .landscapeLeft:
                 textOrientation = .up
@@ -223,7 +119,7 @@ class ViewController: UIViewController {
 		}
 		
 		// The full Vision ROI to AVFoundation transform.
-		visionToAVFTransform = roiToGlobalTransform.concatenating(bottomToTopTransform).concatenating(uiRotationTransform)
+        boundingBoxView.setRotationTransformation(uiRotationTransform: uiRotationTransform)
 	}
 	
 	func setupCamera() {
@@ -282,146 +178,13 @@ class ViewController: UIViewController {
 		
 		captureSession.startRunning()
 	}
-	
-	// MARK: - UI drawing and interaction
-	
-	func showString(string: String) {
-		// Stop the camera synchronously to stop receiving buffers.
-        // Then update the number view asynchronously.
-		captureSessionQueue.sync {
-			//self.captureSession.stopRunning()
-            DispatchQueue.main.async {
-                self.numberResultView.text = string
-                self.numberResultView.isHidden = false
-            }
-		}
-	}
     
-    func showDebugString(string: String) {
-        // Stop the camera synchronously to stop receiving buffers.
-        // Then update the number view asynchronously.
-        captureSessionQueue.sync {
-            DispatchQueue.main.async {
-                self.numberDebugView.text = string
-                self.numberDebugView.isHidden = false
-            }
-        }
-    }
-	
-	func handleTap(_ sender: UITapGestureRecognizer) {
-        captureSessionQueue.async {
-            if !self.captureSession.isRunning {
-                self.captureSession.startRunning()
-            }
-            DispatchQueue.main.async {
-                self.numberResultView.isHidden = true
-                self.numberDebugView.isHidden = true
-            }
-        }
-	}
-    
-    
-    
-    var request: VNRecognizeTextRequest!
-    // The temporal string tracker.
-    let numberTracker = StringTracker()
-    
-    // MARK: - Text recognition
-    
-    // The Vision recognition handler.
-    func recognizeTextHandler(request: VNRequest, error: Error?) {
-        var numbers = [String]()
-        var redBoxes = [CGRect]() // Shows all recognized text lines.
-        var greenBoxes = [CGRect]() // Shows words that might be serials.
-        
-        guard let results = request.results as? [VNRecognizedTextObservation] else {
-            return
-        }
-        
-        let maximumCandidates = 1
-        
-        for visionResult in results {
-            guard let candidate = visionResult.topCandidates(maximumCandidates).first else { continue }
-            
-            // Draw red boxes around any detected text and green boxes around
-            // any detected phone numbers. The phone number may be a substring
-            // of the visionResult. If it's a substring, draw a green box around
-            // the number and a red box around the full string. If the number
-            // covers the full result, only draw the green box.
-            var numberIsSubstring = true
-            
-            if let result = candidate.string.extractNumber() {
-                let (range, number) = result
-                showDebugString(string: number)
-                
-                // The number might not cover full visionResult. Extract the bounding
-                // box of the substring.
-                if let box = try? candidate.boundingBox(for: range)?.boundingBox {
-                    numbers.append(number)
-                    greenBoxes.append(box)
-                    numberIsSubstring = !(range.lowerBound == candidate.string.startIndex && range.upperBound == candidate.string.endIndex)
-                }
-            }
-            if numberIsSubstring {
-                redBoxes.append(visionResult.boundingBox)
-            }
-        }
-        
-        // Log any found numbers.
-        numberTracker.logFrame(strings: numbers)
-        show(boxGroups: [(color: .red, boxes: redBoxes), (color: .green, boxes: greenBoxes)])
-        
-        // Check if there are any temporally stable numbers.
-        if let sureNumber = numberTracker.getStableString() {
-            showString(string: sureNumber)
-            numberTracker.reset(string: sureNumber)
-        }
-    }
-    
-    // MARK: - Bounding box drawing
-    
-    // Draw a box on the screen, which must be done the main queue.
-    var boxLayer = [CAShapeLayer]()
-    func draw(rect: CGRect, color: CGColor) {
-        let layer = CAShapeLayer()
-        layer.opacity = 0.5
-        layer.borderColor = color
-        layer.borderWidth = 3
-        layer.frame = rect
-        boxLayer.append(layer)
-        previewView.videoPreviewLayer.insertSublayer(layer, at: 1)
-    }
-    
-    // Remove all drawn boxes. Must be called on main queue.
-    func removeBoxes() {
-        for layer in boxLayer {
-            layer.removeFromSuperlayer()
-        }
-        boxLayer.removeAll()
-    }
-    
-    typealias ColoredBoxGroup = (color: UIColor, boxes: [CGRect])
-    
-    // Draws groups of colored boxes.
-    func show(boxGroups: [ColoredBoxGroup]) {
-        DispatchQueue.main.async {
-            let layer = self.previewView.videoPreviewLayer
-            self.removeBoxes()
-            for boxGroup in boxGroups {
-                let color = boxGroup.color
-                for box in boxGroup.boxes {
-                    let rect = layer.layerRectConverted(fromMetadataOutputRect: box.applying(self.visionToAVFTransform))
-                    self.draw(rect: rect, color: color.cgColor)
-                }
-            }
-        }
-    }
+   
 }
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
 
 extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
-	
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             // Configure for running in real time.
@@ -430,7 +193,7 @@ extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
             // slows recognition.
             request.usesLanguageCorrection = false
             // Only run on the region of interest for maximum speed.
-            request.regionOfInterest = regionOfInterest
+            request.regionOfInterest = boundingBoxView.getRegionOfInterest()
             request.revision = VNRecognizeTextRequestRevision3
             
             let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: textOrientation, options: [:])
