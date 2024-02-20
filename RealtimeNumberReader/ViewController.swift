@@ -12,7 +12,6 @@ import Vision
 class ViewController: UIViewController {
 	private let previewView = PreviewView()
     private var boundingBoxView: BoundingBoxView!
-    private let initialOrientation = UIDeviceOrientation.portrait
     
 	// MARK: - Capture related objects
 	private let captureSession = AVCaptureSession()
@@ -23,8 +22,6 @@ class ViewController: UIViewController {
     
     // MARK: - Recognition related objects
     private var request: VNRecognizeTextRequest!
-	// The text orientation to search for in the region of interest (ROI).
-	var textOrientation = CGImagePropertyOrientation.up
     // TODO: Understand this
     // TODO: Maybe this will help: https://think4753.rssing.com/chan-74142477/all_p3.html
 	var bufferAspectRatio: Double!
@@ -60,57 +57,10 @@ class ViewController: UIViewController {
         // a dedicated serial dispatch queue to prevent blocking the main thread.
         captureSessionQueue.async {
             self.setupCamera()
-            
-            // Calculate the ROI now that the camera is setup.
-            DispatchQueue.main.async {
-                // Initial orientation setup
-                self.setupOrientationAndTransform(deviceOrientation: self.initialOrientation)
-            }
         }
 	}
-	
-	override func viewWillTransition(to size: CGSize, with coordinator: UIViewControllerTransitionCoordinator) {
-		super.viewWillTransition(to: size, with: coordinator)
-
-		let deviceOrientation = UIDevice.current.orientation
 		
-		// Handle device orientation in the preview layer.
-		if let videoPreviewLayerConnection = previewView.videoPreviewLayer.connection {
-			if let newVideoOrientation = AVCaptureVideoOrientation(deviceOrientation: deviceOrientation) {
-				videoPreviewLayerConnection.videoOrientation = newVideoOrientation
-			}
-		}
-        
-        // Only change the current orientation if the new one is landscape or portrait.
-        if deviceOrientation.isPortrait || deviceOrientation.isLandscape {
-            setupOrientationAndTransform(deviceOrientation: deviceOrientation)
-        }
-    }
-	
 	// MARK: - Setup
-
-    func setupOrientationAndTransform(deviceOrientation: UIDeviceOrientation) {
-        // Compensate for the orientation. Buffers always come in the same orientation.
-        let uiRotationTransform: CGAffineTransform
-        
-		switch deviceOrientation {
-            case .landscapeLeft:
-                textOrientation = .up
-                uiRotationTransform = .identity
-            case .landscapeRight:
-                textOrientation = .down
-                uiRotationTransform = CGAffineTransform(translationX: 1, y: 1).rotated(by: CGFloat.pi)
-            case .portraitUpsideDown:
-                textOrientation = .left
-                uiRotationTransform = CGAffineTransform(translationX: 1, y: 0).rotated(by: CGFloat.pi / 2)
-            default: // Default everything else to .portraitUp.
-                textOrientation = .right
-                uiRotationTransform = CGAffineTransform(translationX: 0, y: 1).rotated(by: -CGFloat.pi / 2)
-		}
-		
-		// Update bounding box with new rotaion transformation.
-        boundingBoxView.setRotationTransformation(uiRotationTransform: uiRotationTransform)
-	}
 	
 	func setupCamera() {
 		guard let captureDevice = AVCaptureDevice.default(.builtInWideAngleCamera, for: .video, position: .back) else {
@@ -185,11 +135,11 @@ extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
             // slows recognition.
             request.usesLanguageCorrection = false
             // Only run on the region of interest for maximum speed.
-            request.regionOfInterest = boundingBoxView.getRegionOfInterest()
+            request.regionOfInterest = boundingBoxView.regionOfInterest
             request.revision = VNRecognizeTextRequestRevision3
             
-            let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: textOrientation, options: [:])
-            
+            let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
+                        
             do {
                 try requestHandler.perform([request])
             } catch {

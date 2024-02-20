@@ -25,7 +25,7 @@ class BoundingBoxView: UIView {
     // which gets recalculated once the bounds of the preview layer are known.
     var regionOfInterest = CGRect(x: 0, y: 0, width: 1, height: 1)
     // Transform from UI orientation to buffer orientation.
-    var uiRotationTransform = CGAffineTransform.identity
+    let uiRotationTransform = CGAffineTransform(translationX: 0, y: 1).rotated(by: -CGFloat.pi / 2)
     // Transform bottom-left coordinates to top-left.
     let bottomToTopTransform = CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: -1)
     var visionToAVFTransform = CGAffineTransform.identity
@@ -71,17 +71,7 @@ class BoundingBoxView: UIView {
     }
     
     // MARK: - Getters/Setters
-    
-    func getRegionOfInterest() -> CGRect {
-        // log("getRegionOfInterest: \(regionOfInterest)")
-        return regionOfInterest
-    }
-    
-    func setRotationTransformation(uiRotationTransform: CGAffineTransform) {
-        self.uiRotationTransform = uiRotationTransform
-        setVisionToAVFTransform()
-    }
-    
+        
     private func setRegionOfInterest() {
         // update ROI
         log("setupOrientationAndTransform: updating ROI: \(regionOfInterest)")
@@ -89,6 +79,8 @@ class BoundingBoxView: UIView {
         regionOfInterest.origin = newRoi.origin
         regionOfInterest.size = newRoi.size
         log("setupOrientationAndTransform: ROI: \(regionOfInterest)")
+        
+        setVisionToAVFTransform()
         
         // update debugFrame
         if(debug) { updateDebugInfo() }
@@ -141,8 +133,8 @@ class BoundingBoxView: UIView {
             log("pinchGestureHandler: new position: \(frame.origin)")
             log("pinchGestureHandler: new size: \(frame.size)")
             
-            setRegionOfInterest()
         }
+        setRegionOfInterest()
     }
     
     @objc
@@ -220,7 +212,7 @@ class BoundingBoxView: UIView {
                 width: frame.size.width / frameWidth,
                 height: frame.size.height / frameHeight)
         )
-        //.applying(self.bottomToTopTransform.concatenating(self.uiRotationTransform).inverted())
+        .applying(self.bottomToTopTransform)
         log("toROI: normalized: \(normalized)")
         return normalized
     }
@@ -291,6 +283,7 @@ class BoundingBoxView: UIView {
         log("updateDebugFrame: uiRotationTransform: \(uiRotationTransform)")
 
         debugLayer.frame = targetView.videoPreviewLayer.layerRectConverted(fromMetadataOutputRect: regionOfInterest.applying(roiRectTransform))
+        
         log("updateDebugFrame: updated: \(debugLayer.frame)")
     }
     
