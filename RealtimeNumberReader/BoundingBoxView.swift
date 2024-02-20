@@ -36,13 +36,11 @@ class BoundingBoxView: UIView {
         self.config = config
 
         super.init(frame: CGRect(origin: config.startingPosition, size: config.startingSize))
-        self.setup()
     }
     
     func setup() {
         layer.borderWidth = config.borderWidth
         layer.borderColor = config.borderColor
-        frame = CGRect(origin: config.startingPosition, size: config.startingSize)
         setRegionOfInterest()
 
         // Add Gestures
@@ -66,6 +64,7 @@ class BoundingBoxView: UIView {
             debugLayer.layer.borderColor = UIColor.red.cgColor
             debugLayer.layer.borderWidth = config.borderWidth + 1
             targetView.addSubview(debugLayer)
+            updateDebugFrame()
         }
 
     }
@@ -74,22 +73,15 @@ class BoundingBoxView: UIView {
         
     private func setRegionOfInterest() {
         // update ROI
-        log("setupOrientationAndTransform: updating ROI: \(regionOfInterest)")
+        log("setRegionOfInterest: updating ROI: \(regionOfInterest)")
         let newRoi = toRegionOfInterest()
         regionOfInterest.origin = newRoi.origin
         regionOfInterest.size = newRoi.size
-        log("setupOrientationAndTransform: ROI: \(regionOfInterest)")
+        log("setRegionOfInterest: ROI: \(regionOfInterest)")
         
-        setVisionToAVFTransform()
-        
-        // update debugFrame
-        if(debug) { updateDebugInfo() }
-    }
-    
-    private func setVisionToAVFTransform () {
-        // update visiontoAVFTransform
+        // update transform
         visionToAVFTransform = getVisionToAVFTransform()
-        
+
         // update debugFrame
         if(debug) { updateDebugInfo() }
     }
@@ -118,7 +110,9 @@ class BoundingBoxView: UIView {
             initialCenter = currentView.center
         }
         
-        let newCenter = CGPoint(x: initialCenter.x + translation.x, y: initialCenter.y + translation.y)
+        let scaleX = currentView.transform.a
+        let scaleY = currentView.transform.d
+        let newCenter = CGPoint(x: initialCenter.x + translation.x * scaleX, y: initialCenter.y + translation.y * scaleY)
         currentView.center = newCenter
         
         if gestureRecognizer.state == .ended || gestureRecognizer.state == .cancelled {
@@ -202,8 +196,10 @@ class BoundingBoxView: UIView {
         // Figure out the size of the ROI.
         let frameWidth = CGFloat(targetView.frame.size.width)
         let frameHeight = CGFloat(targetView.frame.size.height)
+        log("toROI: \(regionOfInterest)")
         log("toROI: frameWidth: \(frameWidth), frameHeight: \(frameHeight)")
-        
+        log("toROI: bounding box width: \(frame.size.width), bounding box height: \(frame.size.height)")
+
         let normalized = CGRect(
             origin: CGPoint(
                 x: frame.origin.x / frameWidth,

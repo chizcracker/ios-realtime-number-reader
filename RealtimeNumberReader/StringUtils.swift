@@ -55,7 +55,7 @@ extension String {
     func extractNumber() -> (Range<String.Index>, String)? {
         print("Input: \(self)")
 
-		guard let range = self.range(of: "\\w+\\s+\\w+", options: .regularExpression, range: nil, locale: nil) else {
+		guard let range = self.range(of: "\\S+\\s+\\S+", options: .regularExpression, range: nil, locale: nil) else {
 			// No phone number found.
 			return nil
 		}

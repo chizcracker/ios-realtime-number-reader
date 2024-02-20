@@ -57,7 +57,13 @@ class ViewController: UIViewController {
         // a dedicated serial dispatch queue to prevent blocking the main thread.
         captureSessionQueue.async {
             self.setupCamera()
+            
+            DispatchQueue.main.async {
+                self.boundingBoxView.setup()
+            }
+
         }
+        
 	}
 		
 	// MARK: - Setup
