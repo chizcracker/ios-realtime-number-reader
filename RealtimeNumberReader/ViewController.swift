@@ -11,7 +11,8 @@ import Vision
 
 class ViewController: UIViewController {
     private let previewView = PreviewView()
-    private var boundingBoxView: BoundingBoxView!
+    private var bb1: BoundingBoxView!
+    private var bb2: BoundingBoxView!
     private let resetButton = UIButton()
     
     // MARK: - Capture related objects
@@ -23,7 +24,8 @@ class ViewController: UIViewController {
     
     // MARK: - Recognition related objects
     // TODO: Maybe this will help: https://think4753.rssing.com/chan-74142477/all_p3.html
-    private var request: VNRecognizeTextRequest!
+    private var request1: VNRecognizeTextRequest!
+    private var request2: VNRecognizeTextRequest!
     
     // MARK: - View controller methods
     
@@ -43,16 +45,19 @@ class ViewController: UIViewController {
         previewView.backgroundColor = .white
         previewView.videoPreviewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
         view.addSubview(previewView)
-        
-        boundingBoxView = BoundingBoxView(name: "test", targetView: previewView, config: ViewConfigPresets.test.config)
-        //view.addSubview(boundingBoxView.debugLayer)
-        view.addSubview(boundingBoxView)
-        
+
+        bb1 = BoundingBoxView(name: "Ollie", targetView: previewView, config: ViewConfigPresets.ollie.config)
+        view.addSubview(bb1)
+
+        bb2 = BoundingBoxView(name: "Toran", targetView: previewView, config: ViewConfigPresets.toran.config)
+        view.addSubview(bb2)
+
         configureResetButton()
         
         // Set up the Vision request before letting ViewController set up the camera
         // so it exists when the first buffer is received.
-        request = VNRecognizeTextRequest(completionHandler: boundingBoxView.recognizeTextHandler)
+        request1 = VNRecognizeTextRequest(completionHandler: bb1.recognizeTextHandler)
+        request2 = VNRecognizeTextRequest(completionHandler: bb2.recognizeTextHandler)
         
         // Starting the capture session is a blocking call. Perform setup using
         // a dedicated serial dispatch queue to prevent blocking the main thread.
@@ -60,7 +65,8 @@ class ViewController: UIViewController {
             self.setupCamera()
             
             DispatchQueue.main.async {
-                self.boundingBoxView.setup()
+                self.bb1.setup()
+                self.bb2.setup()
             }
             
         }
@@ -136,7 +142,8 @@ class ViewController: UIViewController {
     
     @objc
     private func resetButtonTapped() {
-        boundingBoxView.reset()
+        bb1.reset()
+        bb2.reset()
     }
 }
 
@@ -146,18 +153,27 @@ extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
             // Configure for running in real time.
-            request.recognitionLevel = .fast
+            request1.recognitionLevel = .fast
             // Language correction doesn't help in recognizing phone numbers and also
             // slows recognition.
-            request.usesLanguageCorrection = false
+            request1.usesLanguageCorrection = false
             // Only run on the region of interest for maximum speed.
-            request.regionOfInterest = boundingBoxView.regionOfInterest
-            request.revision = VNRecognizeTextRequestRevision3
+            request1.regionOfInterest = bb1.regionOfInterest
+            request1.revision = VNRecognizeTextRequestRevision3
+
+            // Configure for running in real time.
+            request2.recognitionLevel = .fast
+            // Language correction doesn't help in recognizing phone numbers and also
+            // slows recognition.
+            request2.usesLanguageCorrection = false
+            // Only run on the region of interest for maximum speed.
+            request2.regionOfInterest = bb2.regionOfInterest
+            request2.revision = VNRecognizeTextRequestRevision3
             
             let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
             
             do {
-                try requestHandler.perform([request])
+                try requestHandler.perform([request1, request2])
             } catch {
                 print(error)
             }
