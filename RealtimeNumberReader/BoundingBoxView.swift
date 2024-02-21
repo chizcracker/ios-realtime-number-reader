@@ -12,7 +12,7 @@ import Vision
 
 class BoundingBoxView: UIView {
     let name: String
-   
+    
     private let targetView: PreviewView
     private let config: ViewConfig
     let debugLayer = UIView()
@@ -29,7 +29,7 @@ class BoundingBoxView: UIView {
     // Transform bottom-left coordinates to top-left.
     let bottomToTopTransform = CGAffineTransform(scaleX: 1, y: -1).translatedBy(x: 0, y: -1)
     var visionToAVFTransform = CGAffineTransform.identity
-
+    
     init(name: String, targetView: PreviewView, config: ViewConfig) {
         self.name = name
         self.targetView = targetView
@@ -42,11 +42,11 @@ class BoundingBoxView: UIView {
         layer.borderWidth = config.borderWidth
         layer.borderColor = config.borderColor
         setRegionOfInterest()
-
+        
         // Add Gestures
         let panGesture = UIPanGestureRecognizer(target: self, action: #selector(panGestureHandler))
         addGestureRecognizer(panGesture)
-
+        
         let pinchGesture = UIPinchGestureRecognizer(target: self, action: #selector(pinchGestureHandler))
         addGestureRecognizer(pinchGesture)
         
@@ -66,11 +66,15 @@ class BoundingBoxView: UIView {
             targetView.addSubview(debugLayer)
             updateDebugFrame()
         }
-
+    }
+    
+    func reset() {
+        frame = CGRect(origin: config.startingPosition, size: config.startingSize)
+        setRegionOfInterest()
     }
     
     // MARK: - Getters/Setters
-        
+    
     private func setRegionOfInterest() {
         // update ROI
         log("setRegionOfInterest: updating ROI: \(regionOfInterest)")
@@ -81,13 +85,13 @@ class BoundingBoxView: UIView {
         
         // update transform
         visionToAVFTransform = getVisionToAVFTransform()
-
+        
         // update debugFrame
         if(debug) { updateDebugInfo() }
     }
     
     // MARK: - UI
-
+    
     private var initialCenter: CGPoint = CGPoint.zero
     
     @objc
@@ -199,7 +203,7 @@ class BoundingBoxView: UIView {
         log("toROI: \(regionOfInterest)")
         log("toROI: frameWidth: \(frameWidth), frameHeight: \(frameHeight)")
         log("toROI: bounding box width: \(frame.size.width), bounding box height: \(frame.size.height)")
-
+        
         let normalized = CGRect(
             origin: CGPoint(
                 x: frame.origin.x / frameWidth,
@@ -208,7 +212,7 @@ class BoundingBoxView: UIView {
                 width: frame.size.width / frameWidth,
                 height: frame.size.height / frameHeight)
         )
-        .applying(self.bottomToTopTransform)
+            .applying(self.bottomToTopTransform)
         log("toROI: normalized: \(normalized)")
         return normalized
     }
@@ -277,7 +281,7 @@ class BoundingBoxView: UIView {
         let roiRectTransform = bottomToTopTransform.concatenating(uiRotationTransform)
         log("updateDebugFrame: bottomToTopTransform: \(bottomToTopTransform)")
         log("updateDebugFrame: uiRotationTransform: \(uiRotationTransform)")
-
+        
         debugLayer.frame = targetView.videoPreviewLayer.layerRectConverted(fromMetadataOutputRect: regionOfInterest.applying(roiRectTransform))
         
         log("updateDebugFrame: updated: \(debugLayer.frame)")

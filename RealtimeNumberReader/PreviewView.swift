@@ -1,9 +1,9 @@
 /*
-See LICENSE folder for this sample’s licensing information.
-
-Abstract:
-The capture preview view.
-*/
+ See LICENSE folder for this sample’s licensing information.
+ 
+ Abstract:
+ The capture preview view.
+ */
 
 import UIKit
 import AVFoundation
