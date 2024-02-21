@@ -52,11 +52,10 @@ extension Character {
 }
 
 extension String {
-    func extractNumber() -> (Range<String.Index>, String)? {
+    func extractNumber(pattern: String) -> (Range<String.Index>, String)? {
         print("Input: \(self)")
         
-        guard let range = self.range(of: "\\S+", options: .regularExpression, range: nil, locale: nil) else {
-            // No phone number found.
+        guard let range = self.range(of: pattern, options: .regularExpression, range: nil, locale: nil) else {
             return nil
         }
         

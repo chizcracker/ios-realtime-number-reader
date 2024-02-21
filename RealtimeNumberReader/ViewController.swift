@@ -11,8 +11,12 @@ import Vision
 
 class ViewController: UIViewController {
     private let previewView = PreviewView()
+
     private var bb1: BoundingBoxView!
     private var bb2: BoundingBoxView!
+    private let infoLabel1 = UILabel()
+    private let infoLabel2 = UILabel()
+
     private let resetButton = UIButton()
     
     // MARK: - Capture related objects
@@ -24,8 +28,8 @@ class ViewController: UIViewController {
     
     // MARK: - Recognition related objects
     // TODO: Maybe this will help: https://think4753.rssing.com/chan-74142477/all_p3.html
-    private var request1: VNRecognizeTextRequest!
-    private var request2: VNRecognizeTextRequest!
+    private var recognizer1: TextRecognizer!
+    private var recognizer2: TextRecognizer!
     
     // MARK: - View controller methods
     
@@ -45,20 +49,30 @@ class ViewController: UIViewController {
         previewView.backgroundColor = .white
         previewView.videoPreviewLayer.videoGravity = AVLayerVideoGravity.resizeAspectFill
         view.addSubview(previewView)
-
-        bb1 = BoundingBoxView(name: "Ollie", targetView: previewView, config: ViewConfigPresets.ollie.config)
+        
+        recognizer1 = TextRecognizer(targetView: previewView, callback: {
+            (_ number: String) -> Void in
+                DispatchQueue.main.async {
+                    self.infoLabel1.text = "Number: \(number)"
+                }
+           
+        })
+        bb1 = BoundingBoxView(targetView: previewView, textRecognizer: recognizer1, config: ViewConfigPresets.ollie.config)
         view.addSubview(bb1)
-
-        bb2 = BoundingBoxView(name: "Toran", targetView: previewView, config: ViewConfigPresets.toran.config)
+        
+        recognizer2 = TextRecognizer(targetView: previewView, callback: {
+            (_ number: String) -> Void in
+                DispatchQueue.main.async {
+                    self.infoLabel2.text = "Number: \(number)"
+                }
+           
+        })
+        bb2 = BoundingBoxView(targetView: previewView, textRecognizer: recognizer2, config: ViewConfigPresets.toran.config)
         view.addSubview(bb2)
-
+        
+        setupInfoLabels()
         configureResetButton()
-        
-        // Set up the Vision request before letting ViewController set up the camera
-        // so it exists when the first buffer is received.
-        request1 = VNRecognizeTextRequest(completionHandler: bb1.recognizeTextHandler)
-        request2 = VNRecognizeTextRequest(completionHandler: bb2.recognizeTextHandler)
-        
+            
         // Starting the capture session is a blocking call. Perform setup using
         // a dedicated serial dispatch queue to prevent blocking the main thread.
         captureSessionQueue.async {
@@ -71,6 +85,24 @@ class ViewController: UIViewController {
             
         }
         
+    }
+
+    private func setupInfoLabels() {
+        let labelWidth = UIScreen.main.bounds.size.width - 44
+
+        // Setup info Label
+        infoLabel1.text = "\(ViewConfigPresets.ollie.config.id): DEBUGGING LABEL"
+        infoLabel1.textColor = .black
+        
+        infoLabel1.frame = CGRect(origin: ViewConfigPresets.ollie.config.debugLabelPosition, size: CGSize(width: labelWidth, height: 15))
+        view.addSubview(infoLabel1)
+        
+        // Setup info Label
+        infoLabel2.text = "\(ViewConfigPresets.toran.config.id): DEBUGGING LABEL"
+        infoLabel2.textColor = .black
+        
+        infoLabel2.frame = CGRect(origin: ViewConfigPresets.toran.config.debugLabelPosition, size: CGSize(width: labelWidth, height: 15))
+        view.addSubview(infoLabel2)
     }
     
     // MARK: - Setup
@@ -145,6 +177,7 @@ class ViewController: UIViewController {
         bb1.reset()
         bb2.reset()
     }
+
 }
 
 // MARK: - AVCaptureVideoDataOutputSampleBufferDelegate
@@ -152,28 +185,10 @@ class ViewController: UIViewController {
 extension ViewController: AVCaptureVideoDataOutputSampleBufferDelegate {
     func captureOutput(_ output: AVCaptureOutput, didOutput sampleBuffer: CMSampleBuffer, from connection: AVCaptureConnection) {
         if let pixelBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) {
-            // Configure for running in real time.
-            request1.recognitionLevel = .fast
-            // Language correction doesn't help in recognizing phone numbers and also
-            // slows recognition.
-            request1.usesLanguageCorrection = false
-            // Only run on the region of interest for maximum speed.
-            request1.regionOfInterest = bb1.regionOfInterest
-            request1.revision = VNRecognizeTextRequestRevision3
-
-            // Configure for running in real time.
-            request2.recognitionLevel = .fast
-            // Language correction doesn't help in recognizing phone numbers and also
-            // slows recognition.
-            request2.usesLanguageCorrection = false
-            // Only run on the region of interest for maximum speed.
-            request2.regionOfInterest = bb2.regionOfInterest
-            request2.revision = VNRecognizeTextRequestRevision3
-            
             let requestHandler = VNImageRequestHandler(cvPixelBuffer: pixelBuffer, orientation: .right, options: [:])
             
             do {
-                try requestHandler.perform([request1, request2])
+                try requestHandler.perform([recognizer1.getTextRecognitionRequest(), recognizer2.getTextRecognitionRequest()])
             } catch {
                 print(error)
             }
